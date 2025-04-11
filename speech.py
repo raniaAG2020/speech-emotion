@@ -2,7 +2,7 @@ import librosa
 import numpy as np
 import tensorflow as tf
 import os
-#هذا النموذج ميجيبش طول حزين و طبيعي
+
 # ✅ تحميل النموذج المدرب
 model_path = "C:\\Users\\Rania\\Downloads\\model\\modeleee.h5"
 if not os.path.exists(model_path):
@@ -17,10 +17,13 @@ except Exception as e:
 # ✅ قائمة المشاعر المدعومة
 EMOTIONS = ['Anger', 'Disgust', 'Fear', 'Happiness', 'Neutral', 'Sadness', 'Surprise']
 
-def extract_features(file_path, target_time_steps=137, n_mfcc=1):  # 🔁 خليه 1 مش 40
+def extract_features(file_path, target_time_steps=182, n_mfcc=13):  # ← رفعنا عدد الـ MFCC لأننا نحتاج وسطهم
+    """
+    استخراج الميزات الصوتية باستخدام MFCC وتحويلها إلى شكل يناسب النموذج.
+    """
     try:
         data, sr = librosa.load(file_path, sr=22050, duration=2.5, offset=0.6)
-        mfcc = librosa.feature.mfcc(y=data, sr=sr, n_mfcc=n_mfcc).T
+        mfcc = librosa.feature.mfcc(y=data, sr=sr, n_mfcc=n_mfcc).T  # (?, n_mfcc)
 
         if mfcc.shape[0] > target_time_steps:
             mfcc = mfcc[:target_time_steps, :]
@@ -28,11 +31,18 @@ def extract_features(file_path, target_time_steps=137, n_mfcc=1):  # 🔁 خلي
             pad = target_time_steps - mfcc.shape[0]
             mfcc = np.pad(mfcc, ((0, pad), (0, 0)), mode='constant')
 
-        return np.expand_dims(mfcc, axis=0)  # ✅ الناتج: (1, 137, 1)
+        # ✅ أخذ القناة اللي في المنتصف بدل القناة الأولى
+        mid_channel_index = mfcc.shape[1] // 2
+        mfcc = mfcc[:, mid_channel_index:mid_channel_index+1]  # (182, 1)
+
+        # ✅ إعادة التشكيل إلى (1, 182, 1)
+        mfcc = np.expand_dims(mfcc, axis=0)
+
+        return mfcc
+
     except Exception as e:
         print(f"❌ خطأ في استخراج الميزات: {str(e)}")
         return None
-
 
 def recognizee(file_path):
     """
@@ -44,8 +54,6 @@ def recognizee(file_path):
             return "❌ خطأ في استخراج الميزات!"
 
         print("🔹 شكل البيانات المدخلة للنموذج:", features.shape)
-
-        # التنبؤ بالعاطفة
         prediction = model.predict(features)
         emotion_index = np.argmax(prediction)
         emotion = EMOTIONS[emotion_index]
